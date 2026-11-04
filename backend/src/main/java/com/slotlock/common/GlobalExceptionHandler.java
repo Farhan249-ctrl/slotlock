@@ -2,6 +2,7 @@ package com.slotlock.common;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,23 +24,10 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("SLOT_TAKEN"));
     }
 
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
-        log.warn("Database integrity violation: {}", ex.getMessage());
-        String fullMessage = ex.getMessage();
-        Throwable cause = ex.getCause();
-        while (cause != null) {
-            fullMessage += " " + cause.getMessage();
-            cause = cause.getCause();
-        }
-
-        if (fullMessage != null && (fullMessage.contains("exclude_overlapping_bookings")
-                || fullMessage.contains("23P01")
-                || fullMessage.contains("conflicting key value violates exclusion constraint"))) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("SLOT_TAKEN"));
-        }
-
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("DATA_INTEGRITY_VIOLATION"));
+    @ExceptionHandler({DataIntegrityViolationException.class, ConcurrencyFailureException.class})
+    public ResponseEntity<ErrorResponse> handleDatabaseConflict(Exception ex) {
+        log.warn("Database conflict / integrity violation: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("SLOT_TAKEN"));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

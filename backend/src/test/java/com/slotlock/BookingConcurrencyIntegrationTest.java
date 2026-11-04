@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
@@ -23,8 +24,6 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.HttpStatusCodeException;
 
@@ -44,26 +43,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class BookingConcurrencyIntegrationTest {
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        String host = System.getenv("POSTGRES_HOST");
-        if (host == null || host.isBlank()) {
-            host = resolvePostgresHost();
-        }
-        String finalHost = host;
-        registry.add("spring.datasource.url",
-                () -> "jdbc:postgresql://" + finalHost + ":5432/slotlock");
-    }
-
-    private static String resolvePostgresHost() {
-        try (java.sql.Connection conn = java.sql.DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/slotlock", "slotlock", "slotlock_dev_password")) {
-            return "localhost";
-        } catch (Exception e) {
-            return "172.28.223.252";
-        }
-    }
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -85,6 +64,12 @@ public class BookingConcurrencyIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Value("${app.admin.email:admin@slotlock.local}")
+    private String adminEmail;
+
+    @Value("${app.admin.password}")
+    private String adminPassword;
 
     private String studentToken;
     private String adminToken;
@@ -113,10 +98,10 @@ public class BookingConcurrencyIntegrationTest {
         studentToken = jwtService.generateToken(student);
 
         // Setup admin user
-        User admin = userRepository.findByEmail("admin@slotlock.local")
+        User admin = userRepository.findByEmail(adminEmail)
                 .orElseGet(() -> userRepository.save(new User(
-                        "admin@slotlock.local",
-                        passwordEncoder.encode("AdminPassword123!"),
+                        adminEmail,
+                        passwordEncoder.encode(adminPassword),
                         "System Admin",
                         Role.ADMIN
                 )));
