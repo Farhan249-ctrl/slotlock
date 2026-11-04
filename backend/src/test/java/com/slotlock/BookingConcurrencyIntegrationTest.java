@@ -24,6 +24,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.HttpStatusCodeException;
 
@@ -42,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
 public class BookingConcurrencyIntegrationTest {
 
     @Autowired
@@ -167,13 +169,16 @@ public class BookingConcurrencyIntegrationTest {
 
         long count201 = responses.stream().filter(r -> r.getStatusCode().value() == 201).count();
         long count409 = responses.stream().filter(r -> r.getStatusCode().value() == 409).count();
+        long otherCount = responses.stream().filter(r -> r.getStatusCode().value() != 201 && r.getStatusCode().value() != 409).count();
 
         System.out.println("=== 50-THREAD CONCURRENCY PROOF RESULTS ===");
         System.out.println("Total requests: " + responses.size());
         System.out.println("HTTP 201 (CREATED): " + count201);
         System.out.println("HTTP 409 (CONFLICT): " + count409);
+        System.out.println("Other (neither 201 nor 409): " + otherCount);
         System.out.println("==========================================");
 
+        assertEquals(0, otherCount, "Any response that is neither 201 nor 409 must be 0");
         assertEquals(1, count201, "Exactly one thread must succeed with HTTP 201");
         assertEquals(49, count409, "Exactly 49 threads must fail with HTTP 409");
 

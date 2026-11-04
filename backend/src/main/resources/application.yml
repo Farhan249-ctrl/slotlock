@@ -2,7 +2,7 @@ spring:
   application:
     name: slotlock
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5433}/${POSTGRES_DB:slotlock}?options=-c%20deadlock_timeout=10ms}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5433}/${POSTGRES_DB:slotlock}}
     username: ${POSTGRES_USER:slotlock}
     password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
