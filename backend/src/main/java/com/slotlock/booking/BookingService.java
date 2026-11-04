@@ -66,7 +66,22 @@ public class BookingService {
             endOfDay = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
         }
 
-        return bookingRepository.findFiltered(hallId, startOfDay, endOfDay).stream()
+        List<Booking> bookings;
+        if (hallId != null && date != null) {
+            bookings = bookingRepository.findByHallIdAndStartTimeGreaterThanEqualAndStartTimeLessThanOrderByStartTimeAsc(
+                    hallId, startOfDay, endOfDay
+            );
+        } else if (hallId != null) {
+            bookings = bookingRepository.findByHallIdOrderByStartTimeAsc(hallId);
+        } else if (date != null) {
+            bookings = bookingRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThanOrderByStartTimeAsc(
+                    startOfDay, endOfDay
+            );
+        } else {
+            bookings = bookingRepository.findAllByOrderByStartTimeAsc();
+        }
+
+        return bookings.stream()
                 .map(BookingResponse::fromEntity)
                 .toList();
     }

@@ -6,6 +6,9 @@ spring:
     username: ${POSTGRES_USER:slotlock}
     password: ${POSTGRES_PASSWORD:slotlock_dev_password}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 50
+      connection-timeout: 30000
   jpa:
     hibernate:
       ddl-auto: validate
