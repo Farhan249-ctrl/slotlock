@@ -19,11 +19,14 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.web.client.DefaultResponseErrorHandler;
+import org.springframework.web.client.HttpStatusCodeException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -89,6 +92,14 @@ public class BookingConcurrencyIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // Do not throw exceptions on 4xx/5xx HTTP responses so we can assert on response entities directly
+        restTemplate.getRestTemplate().setErrorHandler(new DefaultResponseErrorHandler() {
+            @Override
+            public boolean hasError(HttpStatusCode statusCode) {
+                return false;
+            }
+        });
+
         bookingRepository.deleteAll();
 
         // Setup student user
@@ -152,6 +163,8 @@ public class BookingConcurrencyIntegrationTest {
                             String.class
                     );
                     responses.add(response);
+                } catch (HttpStatusCodeException ex) {
+                    responses.add(ResponseEntity.status(ex.getStatusCode()).body(ex.getResponseBodyAsString()));
                 } catch (Exception e) {
                     System.err.println("Thread error: " + e.getMessage());
                 } finally {
