@@ -34,8 +34,17 @@ public class BookingController {
     @GetMapping
     public ResponseEntity<List<BookingResponse>> getBookings(
             @RequestParam(required = false) Long hallId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ResponseEntity.ok(bookingService.getBookings(hallId, date));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) BookingStatus status,
+            Authentication authentication) {
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        return ResponseEntity.ok(bookingService.getBookings(hallId, date, status, isAdmin));
+    }
+
+    @GetMapping("/mine")
+    public ResponseEntity<List<BookingResponse>> getMyBookings(Authentication authentication) {
+        return ResponseEntity.ok(bookingService.getMyBookings(authentication.getName()));
     }
 
     @PostMapping
@@ -45,6 +54,14 @@ public class BookingController {
             Authentication authentication) {
         BookingResponse response = bookingService.createBooking(request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PatchMapping("/{id}/cancel")
+    public ResponseEntity<BookingResponse> cancelBooking(
+            @PathVariable Long id,
+            Authentication authentication) {
+        BookingResponse response = bookingService.cancelBooking(id, authentication.getName());
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/{id}/status")

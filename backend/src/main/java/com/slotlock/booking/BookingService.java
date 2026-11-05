@@ -6,6 +6,7 @@ import com.slotlock.hall.Hall;
 import com.slotlock.hall.HallRepository;
 import com.slotlock.user.User;
 import com.slotlock.user.UserRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,7 +59,26 @@ public class BookingService {
     }
 
     @Transactional(readOnly = true)
-    public List<BookingResponse> getBookings(Long hallId, LocalDate date) {
+    public List<BookingResponse> getBookings(Long hallId, LocalDate date, BookingStatus status, boolean isAdmin) {
+        if (status != null) {
+            if (!isAdmin) {
+                throw new AccessDeniedException("Only admins can filter bookings by status");
+            }
+            List<Booking> bookings;
+            if (hallId != null) {
+                bookings = bookingRepository.findByHallIdAndStatusOrderByCreatedAtDesc(hallId, status);
+            } else {
+                bookings = bookingRepository.findByStatusOrderByCreatedAtDesc(status);
+            }
+            return bookings.stream().map(BookingResponse::fromEntity).toList();
+        }
+
+        if (!isAdmin) {
+            if (hallId == null || date == null) {
+                throw new IllegalArgumentException("hallId and date are required for students");
+            }
+        }
+
         Instant startOfDay = null;
         Instant endOfDay = null;
         if (date != null) {
@@ -78,12 +98,38 @@ public class BookingService {
                     startOfDay, endOfDay
             );
         } else {
-            bookings = bookingRepository.findAllByOrderByStartTimeAsc();
+            bookings = bookingRepository.findAllByOrderByCreatedAtDesc();
         }
 
         return bookings.stream()
                 .map(BookingResponse::fromEntity)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getMyBookings(String userEmail) {
+        return bookingRepository.findByUserEmailOrderByCreatedAtDesc(userEmail)
+                .stream()
+                .map(BookingResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional
+    public BookingResponse cancelBooking(Long bookingId, String userEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("Booking not found with id: " + bookingId));
+
+        if (!booking.getUser().getEmail().equalsIgnoreCase(userEmail)) {
+            throw new AccessDeniedException("Only the booking owner can cancel this booking");
+        }
+
+        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.APPROVED) {
+            throw new IllegalArgumentException("Only PENDING or APPROVED bookings can be cancelled");
+        }
+
+        booking.setStatus(BookingStatus.CANCELLED);
+        Booking saved = bookingRepository.saveAndFlush(booking);
+        return BookingResponse.fromEntity(saved);
     }
 
     @Transactional

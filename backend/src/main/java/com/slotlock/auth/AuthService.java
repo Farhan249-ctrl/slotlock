@@ -3,6 +3,7 @@ package com.slotlock.auth;
 import com.slotlock.auth.dto.AuthResponse;
 import com.slotlock.auth.dto.LoginRequest;
 import com.slotlock.auth.dto.RegisterRequest;
+import com.slotlock.auth.dto.UserSummaryResponse;
 import com.slotlock.security.JwtService;
 import com.slotlock.user.Role;
 import com.slotlock.user.User;
@@ -71,5 +72,12 @@ public class AuthService {
                 user.getName(),
                 user.getRole()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public UserSummaryResponse getCurrentUser(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+        return UserSummaryResponse.fromEntity(user);
     }
 }

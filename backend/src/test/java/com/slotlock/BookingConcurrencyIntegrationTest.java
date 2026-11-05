@@ -29,6 +29,7 @@ import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.HttpStatusCodeException;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -291,5 +292,214 @@ public class BookingConcurrencyIntegrationTest {
         assertEquals(400, response.getStatusCode().value(), "Status code must be 400 BAD_REQUEST");
         assertTrue(response.getStatusCode().value() != 500, "Status code must not be 500");
         assertTrue(response.getStatusCode().value() != 409, "Status code must not be 409");
+    }
+
+    @Test
+    @DisplayName("Admin can filter bookings by status; students cannot; hallId and date required for students")
+    void testAdminGetBookingsByStatusAndRoleChecks() throws Exception {
+        // 1. Create a booking as student
+        Instant startTime = Instant.now().plus(25, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
+        Instant endTime = startTime.plus(2, ChronoUnit.HOURS);
+
+        HttpHeaders studentHeaders = new HttpHeaders();
+        studentHeaders.setContentType(MediaType.APPLICATION_JSON);
+        studentHeaders.setBearerAuth(studentToken);
+
+        CreateBookingRequest req = new CreateBookingRequest(testHall.getId(), "Admin List Test", startTime, endTime);
+        ResponseEntity<String> createRes = restTemplate.postForEntity("/api/bookings", new HttpEntity<>(req, studentHeaders), String.class);
+        assertEquals(201, createRes.getStatusCode().value());
+
+        // 2. Admin queries with ?status=PENDING -> 200 OK
+        HttpHeaders adminHeaders = new HttpHeaders();
+        adminHeaders.setBearerAuth(adminToken);
+        ResponseEntity<String> adminRes = restTemplate.exchange(
+                "/api/bookings?status=PENDING",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                String.class
+        );
+        assertEquals(200, adminRes.getStatusCode().value());
+        JsonNode adminBookings = objectMapper.readTree(adminRes.getBody());
+        assertTrue(adminBookings.isArray());
+        assertTrue(adminBookings.size() > 0);
+        JsonNode first = adminBookings.get(0);
+        assertEquals("PENDING", first.get("status").asText());
+        assertEquals("Test Student", first.get("userName").asText(), "Requester name must be present in admin list");
+        assertEquals(testHall.getName(), first.get("hallName").asText(), "Hall name must be present in admin list");
+
+        // 3. Admin queries without hallId or date -> 200 OK (optional for admins)
+        ResponseEntity<String> adminAllRes = restTemplate.exchange(
+                "/api/bookings",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                String.class
+        );
+        assertEquals(200, adminAllRes.getStatusCode().value());
+
+        // 4. Student queries with ?status=PENDING -> 403 Forbidden
+        ResponseEntity<String> studentStatusRes = restTemplate.exchange(
+                "/api/bookings?status=PENDING",
+                HttpMethod.GET,
+                new HttpEntity<>(studentHeaders),
+                String.class
+        );
+        assertEquals(403, studentStatusRes.getStatusCode().value());
+
+        // 5. Student queries without hallId or date -> 400 Bad Request
+        ResponseEntity<String> studentMissingRes = restTemplate.exchange(
+                "/api/bookings",
+                HttpMethod.GET,
+                new HttpEntity<>(studentHeaders),
+                String.class
+        );
+        assertEquals(400, studentMissingRes.getStatusCode().value());
+
+        // 6. Student queries with hallId and date -> 200 OK
+        LocalDate bookingDate = startTime.atZone(java.time.ZoneOffset.UTC).toLocalDate();
+        ResponseEntity<String> studentValidRes = restTemplate.exchange(
+                "/api/bookings?hallId=" + testHall.getId() + "&date=" + bookingDate,
+                HttpMethod.GET,
+                new HttpEntity<>(studentHeaders),
+                String.class
+        );
+        assertEquals(200, studentValidRes.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("GET /api/bookings/mine returns authenticated caller's own bookings")
+    void testGetMyBookings() throws Exception {
+        Instant startTime = Instant.now().plus(30, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
+        Instant endTime = startTime.plus(1, ChronoUnit.HOURS);
+
+        HttpHeaders studentHeaders = new HttpHeaders();
+        studentHeaders.setContentType(MediaType.APPLICATION_JSON);
+        studentHeaders.setBearerAuth(studentToken);
+
+        CreateBookingRequest req = new CreateBookingRequest(testHall.getId(), "My Booking Title", startTime, endTime);
+        ResponseEntity<String> createRes = restTemplate.postForEntity("/api/bookings", new HttpEntity<>(req, studentHeaders), String.class);
+        assertEquals(201, createRes.getStatusCode().value());
+
+        // Authenticated student call
+        ResponseEntity<String> mineRes = restTemplate.exchange(
+                "/api/bookings/mine",
+                HttpMethod.GET,
+                new HttpEntity<>(studentHeaders),
+                String.class
+        );
+        assertEquals(200, mineRes.getStatusCode().value());
+        JsonNode bookings = objectMapper.readTree(mineRes.getBody());
+        assertTrue(bookings.isArray());
+        assertTrue(bookings.size() >= 1);
+        assertEquals(testHall.getName(), bookings.get(0).get("hallName").asText());
+        assertEquals("Test Student", bookings.get(0).get("userName").asText());
+
+        // Unauthenticated call -> 401
+        ResponseEntity<String> unauthRes = restTemplate.getForEntity("/api/bookings/mine", String.class);
+        assertEquals(401, unauthRes.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("GET /api/auth/me returns user id, name, email, role")
+    void testGetCurrentUserMe() throws Exception {
+        // Authenticated Student
+        HttpHeaders studentHeaders = new HttpHeaders();
+        studentHeaders.setBearerAuth(studentToken);
+        ResponseEntity<String> studentRes = restTemplate.exchange(
+                "/api/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(studentHeaders),
+                String.class
+        );
+        assertEquals(200, studentRes.getStatusCode().value());
+        JsonNode studentJson = objectMapper.readTree(studentRes.getBody());
+        assertEquals("student@test.com", studentJson.get("email").asText());
+        assertEquals("Test Student", studentJson.get("name").asText());
+        assertEquals("STUDENT", studentJson.get("role").asText());
+        assertNotNull(studentJson.get("id"));
+
+        // Authenticated Admin
+        HttpHeaders adminHeaders = new HttpHeaders();
+        adminHeaders.setBearerAuth(adminToken);
+        ResponseEntity<String> adminRes = restTemplate.exchange(
+                "/api/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                String.class
+        );
+        assertEquals(200, adminRes.getStatusCode().value());
+        JsonNode adminJson = objectMapper.readTree(adminRes.getBody());
+        assertEquals(adminEmail, adminJson.get("email").asText());
+        assertEquals("ADMIN", adminJson.get("role").asText());
+
+        // Unauthenticated -> 401
+        ResponseEntity<String> unauthRes = restTemplate.getForEntity("/api/auth/me", String.class);
+        assertEquals(401, unauthRes.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("PATCH /api/bookings/{id}/cancel allows owner to cancel PENDING/APPROVED and frees the slot")
+    void testCancelBookingAndSlotFreeing() throws Exception {
+        Instant startTime = Instant.now().plus(35, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
+        Instant endTime = startTime.plus(1, ChronoUnit.HOURS);
+
+        // Setup a second student
+        User otherStudent = userRepository.findByEmail("other_student@test.com")
+                .orElseGet(() -> userRepository.save(new User(
+                        "other_student@test.com",
+                        passwordEncoder.encode("Password123!"),
+                        "Other Student",
+                        Role.STUDENT
+                )));
+        String otherStudentToken = jwtService.generateToken(otherStudent);
+
+        HttpHeaders studentHeaders = new HttpHeaders();
+        studentHeaders.setContentType(MediaType.APPLICATION_JSON);
+        studentHeaders.setBearerAuth(studentToken);
+
+        HttpHeaders otherStudentHeaders = new HttpHeaders();
+        otherStudentHeaders.setContentType(MediaType.APPLICATION_JSON);
+        otherStudentHeaders.setBearerAuth(otherStudentToken);
+
+        // 1. Student 1 creates booking (PENDING)
+        CreateBookingRequest req = new CreateBookingRequest(testHall.getId(), "Cancel Test", startTime, endTime);
+        ResponseEntity<String> createRes = restTemplate.postForEntity("/api/bookings", new HttpEntity<>(req, studentHeaders), String.class);
+        assertEquals(201, createRes.getStatusCode().value());
+        Long bookingId = objectMapper.readTree(createRes.getBody()).get("id").asLong();
+
+        // 2. Student 2 tries to cancel Student 1's booking -> 403 Forbidden
+        ResponseEntity<String> forbiddenCancelRes = restTemplate.exchange(
+                "/api/bookings/" + bookingId + "/cancel",
+                HttpMethod.PATCH,
+                new HttpEntity<>(otherStudentHeaders),
+                String.class
+        );
+        assertEquals(403, forbiddenCancelRes.getStatusCode().value());
+
+        // 3. Student 1 cancels their own booking -> 200 OK, status CANCELLED
+        ResponseEntity<String> cancelRes = restTemplate.exchange(
+                "/api/bookings/" + bookingId + "/cancel",
+                HttpMethod.PATCH,
+                new HttpEntity<>(studentHeaders),
+                String.class
+        );
+        assertEquals(200, cancelRes.getStatusCode().value());
+        assertEquals("CANCELLED", objectMapper.readTree(cancelRes.getBody()).get("status").asText());
+
+        // 4. Trying to cancel an already CANCELLED booking -> 400 Bad Request
+        ResponseEntity<String> reCancelRes = restTemplate.exchange(
+                "/api/bookings/" + bookingId + "/cancel",
+                HttpMethod.PATCH,
+                new HttpEntity<>(studentHeaders),
+                String.class
+        );
+        assertEquals(400, reCancelRes.getStatusCode().value());
+
+        // 5. Verify the slot is freed: Student 2 can now book the exact same slot -> 201 Created
+        ResponseEntity<String> rebookRes = restTemplate.postForEntity(
+                "/api/bookings",
+                new HttpEntity<>(req, otherStudentHeaders),
+                String.class
+        );
+        assertEquals(201, rebookRes.getStatusCode().value(), "Cancelled slot must be freed for new bookings");
     }
 }

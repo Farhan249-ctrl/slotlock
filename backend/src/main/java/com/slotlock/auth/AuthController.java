@@ -3,9 +3,13 @@ package com.slotlock.auth;
 import com.slotlock.auth.dto.AuthResponse;
 import com.slotlock.auth.dto.LoginRequest;
 import com.slotlock.auth.dto.RegisterRequest;
+import com.slotlock.auth.dto.UserSummaryResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,6 +34,15 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UserSummaryResponse> getCurrentUser(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AccessDeniedException("Unauthorized");
+        }
+        UserSummaryResponse response = authService.getCurrentUser(authentication.getName());
         return ResponseEntity.ok(response);
     }
 }

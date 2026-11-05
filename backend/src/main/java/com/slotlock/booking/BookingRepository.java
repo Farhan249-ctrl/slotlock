@@ -19,4 +19,16 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @EntityGraph(attributePaths = {"hall", "user"})
     List<Booking> findByHallIdAndStartTimeGreaterThanEqualAndStartTimeLessThanOrderByStartTimeAsc(Long hallId, Instant start, Instant end);
+
+    @EntityGraph(attributePaths = {"hall", "user"})
+    List<Booking> findByStatusOrderByCreatedAtDesc(BookingStatus status);
+
+    @EntityGraph(attributePaths = {"hall", "user"})
+    List<Booking> findByHallIdAndStatusOrderByCreatedAtDesc(Long hallId, BookingStatus status);
+
+    @EntityGraph(attributePaths = {"hall", "user"})
+    List<Booking> findByUserEmailOrderByCreatedAtDesc(String email);
+
+    @EntityGraph(attributePaths = {"hall", "user"})
+    List<Booking> findAllByOrderByCreatedAtDesc();
 }
