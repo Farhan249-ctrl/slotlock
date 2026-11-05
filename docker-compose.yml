@@ -1,0 +1,133 @@
+# ==============================================================================
+# SlotLock Production Compose Specification
+# ==============================================================================
+# Architecture Overview:
+# - Edge Network: Exposes Nginx reverse proxy (ports 80 & 443) and routes traffic
+#   to frontend SPA and backend API.
+# - Private Network: Isolated internal network connecting backend service directly
+#   to PostgreSQL database. Postgres publishes no host ports.
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Edge Reverse Proxy (Nginx)
+  # ----------------------------------------------------------------------------
+  # Only service publishing host ports (80 HTTP -> 443 HTTPS redirect, 443 TLS).
+  # Proxies /api/ to backend:8080 and / to frontend:80.
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: slotlock-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    networks:
+      - edge
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --no-check-certificate --spider https://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # 2. Frontend Web Client (React 18 + Vite SPA)
+  # ----------------------------------------------------------------------------
+  # Serves compiled static assets through lightweight Nginx.
+  # Isolated within edge network; publishes no host ports.
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: slotlock-frontend
+    restart: unless-stopped
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:80 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # 3. Backend Service (Spring Boot 3 + Java 21)
+  # ----------------------------------------------------------------------------
+  # Multi-stage image running as non-root user.
+  # Connects to Postgres on private network and receives routed API traffic from edge.
+  # Publishes no host ports.
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: slotlock-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override host defaults for containerized private network communication
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+    networks:
+      - edge
+      - private
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ----------------------------------------------------------------------------
+  # 4. Database Service (PostgreSQL 16)
+  # ----------------------------------------------------------------------------
+  # Private data store enforcing GiST exclusion constraints on bookings.
+  # Strictly isolated on private network; publishes no host ports.
+  postgres:
+    image: postgres:16
+    container_name: slotlock-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+# ------------------------------------------------------------------------------
+# Networks
+# ------------------------------------------------------------------------------
+networks:
+  # Edge network: Public-facing ingress and proxy communication
+  edge:
+    name: slotlock_edge
+    driver: bridge
+  # Private network: Internal database communication isolated from public ingress
+  private:
+    name: slotlock_private
+    driver: bridge
+
+# ------------------------------------------------------------------------------
+# Persistent Volumes
+# ------------------------------------------------------------------------------
+volumes:
+  # Persistent storage for PostgreSQL data directory
+  postgres_data:
+    name: slotlock_postgres_data
