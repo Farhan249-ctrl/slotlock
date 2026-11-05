@@ -258,4 +258,38 @@ public class BookingConcurrencyIntegrationTest {
         ResponseEntity<String> res3 = restTemplate.postForEntity("/api/bookings", new HttpEntity<>(conflictReq, studentHeaders), String.class);
         assertEquals(201, res3.getStatusCode().value(), "Slot freed by rejection must now succeed");
     }
+
+    @Test
+    @DisplayName("A booking with end_time before start_time must return a 4xx (validation), not 500 and not 409")
+    void testBookingWithEndTimeBeforeStartTimeReturns4xx() {
+        Instant startTime = Instant.now().plus(20, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
+        Instant endTime = startTime.minus(1, ChronoUnit.HOURS);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(studentToken);
+
+        CreateBookingRequest invalidReq = new CreateBookingRequest(
+                testHall.getId(),
+                "Invalid End Time Before Start Time",
+                startTime,
+                endTime
+        );
+
+        ResponseEntity<String> response = restTemplate.postForEntity(
+                "/api/bookings",
+                new HttpEntity<>(invalidReq, headers),
+                String.class
+        );
+
+        System.out.println("=== END_TIME BEFORE START_TIME VALIDATION TEST ===");
+        System.out.println("HTTP Status: " + response.getStatusCode().value());
+        System.out.println("Response Body: " + response.getBody());
+        System.out.println("=================================================");
+
+        assertTrue(response.getStatusCode().is4xxClientError(), "Status code must be 4xx client error (validation)");
+        assertEquals(400, response.getStatusCode().value(), "Status code must be 400 BAD_REQUEST");
+        assertTrue(response.getStatusCode().value() != 500, "Status code must not be 500");
+        assertTrue(response.getStatusCode().value() != 409, "Status code must not be 409");
+    }
 }
