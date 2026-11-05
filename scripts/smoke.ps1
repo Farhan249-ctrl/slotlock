@@ -82,10 +82,12 @@ Write-Host "Found $($halls.Count) halls."
 $testHall = $halls[0]
 Write-Host "Using Hall: $($testHall.name) (ID: $($testHall.id), Capacity: $($testHall.capacity))"
 
-# 4. Book a future slot
-$futureDate = [DateTime]::UtcNow.AddDays(45).ToString("yyyy-MM-dd")
-$startTime = "${futureDate}T10:00:00Z"
-$endTime = "${futureDate}T11:00:00Z"
+# 4. Book a future slot (dynamically offset to guarantee unique slot per smoke test run)
+$daysOffset = 50 + ($timestamp % 300)
+$hoursOffset = 8 + ($timestamp % 10)
+$futureDate = [DateTime]::UtcNow.AddDays($daysOffset).ToString("yyyy-MM-dd")
+$startTime = "${futureDate}T{0:D2}:00:00Z" -f $hoursOffset
+$endTime = "${futureDate}T{0:D2}:00:00Z" -f ($hoursOffset + 1)
 
 Write-Host "`n4. Booking a slot ($startTime - $endTime)..."
 $bookingBody = @{
