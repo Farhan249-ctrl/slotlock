@@ -1,5 +1,6 @@
 .env
 *.pem
+nginx/certs/
 target/
 node_modules/
 .idea/
