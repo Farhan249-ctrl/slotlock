@@ -1,0 +1,96 @@
+﻿================================================================================
+                       SLOTLOCK DEPLOYMENT EVIDENCE                             
+================================================================================
+
+=== 1. DOCKER COMPOSE PS ===
+NAME                IMAGE               COMMAND                  SERVICE    CREATED              STATUS                        PORTS
+slotlock-backend    slotlock-backend    "java -Duser.timezonΓÇª"   backend    About a minute ago   Up About a minute (healthy)   8080/tcp
+slotlock-frontend   slotlock-frontend   "/docker-entrypoint.ΓÇª"   frontend   About a minute ago   Up About a minute (healthy)   80/tcp
+slotlock-nginx      nginx:1.27-alpine   "/docker-entrypoint.ΓÇª"   nginx      About a minute ago   Up About a minute (healthy)   0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
+slotlock-postgres   postgres:16         "docker-entrypoint.sΓÇª"   postgres   About a minute ago   Up About a minute (healthy)   5432/tcp
+
+=== 2. DOCKER COMPOSE LOGS (BACKEND & NGINX) ===
+slotlock-backend  | 2026-11-05T11:40:04.024Z  INFO 1 --- [slotlock] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+slotlock-backend  | 2026-11-05T11:40:04.725Z  INFO 1 --- [slotlock] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@761f234c
+slotlock-backend  | 2026-11-05T11:40:04.731Z  INFO 1 --- [slotlock] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+slotlock-nginx    | /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+slotlock-nginx    | /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+slotlock-nginx    | /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+slotlock-nginx    | 10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+slotlock-nginx    | 10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+slotlock-nginx    | /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+slotlock-nginx    | /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+slotlock-nginx    | /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+slotlock-nginx    | /docker-entrypoint.sh: Configuration complete; ready for start up
+slotlock-nginx    | 172.18.0.1 - - [05/Nov/2026:11:40:22 +0000] "POST /api/auth/login HTTP/1.1" 200 421 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-IN) WindowsPowerShell/5.1.26100.9818" "-"
+slotlock-nginx    | 172.18.0.1 - - [05/Nov/2026:11:40:22 +0000] "GET /api/bookings/mine HTTP/1.1" 200 295 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-IN) WindowsPowerShell/5.1.26100.9818" "-"
+slotlock-nginx    | 127.0.0.1 - - [05/Nov/2026:11:40:23 +0000] "GET / HTTP/1.1" 200 730 "-" "Wget" "-"
+slotlock-nginx    | 127.0.0.1 - - [05/Nov/2026:11:40:33 +0000] "GET / HTTP/1.1" 200 730 "-" "Wget" "-"
+slotlock-backend  | 2026-11-05T11:40:04.834Z  INFO 1 --- [slotlock] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://postgres:5432/slotlock (PostgreSQL 16.15)
+slotlock-backend  | 2026-11-05T11:40:05.064Z  INFO 1 --- [slotlock] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 2 migrations (execution time 00:00.119s)
+slotlock-backend  | 2026-11-05T11:40:05.115Z  INFO 1 --- [slotlock] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 2
+slotlock-nginx    | 127.0.0.1 - - [05/Nov/2026:11:40:44 +0000] "GET / HTTP/1.1" 200 730 "-" "Wget" "-"
+slotlock-nginx    | 127.0.0.1 - - [05/Nov/2026:11:40:54 +0000] "GET / HTTP/1.1" 200 730 "-" "Wget" "-"
+slotlock-backend  | 2026-11-05T11:40:05.128Z  INFO 1 --- [slotlock] [           main] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
+slotlock-backend  | 2026-11-05T11:40:05.475Z  INFO 1 --- [slotlock] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+slotlock-nginx    | 127.0.0.1 - - [05/Nov/2026:11:41:04 +0000] "GET / HTTP/1.1" 200 730 "-" "Wget" "-"
+slotlock-backend  | 2026-11-05T11:40:05.679Z  INFO 1 --- [slotlock] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.8.Final
+slotlock-backend  | 2026-11-05T11:40:05.792Z  INFO 1 --- [slotlock] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+slotlock-backend  | 2026-11-05T11:40:06.669Z  INFO 1 --- [slotlock] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+slotlock-backend  | 2026-11-05T11:40:06.910Z  INFO 1 --- [slotlock] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+slotlock-backend  | 	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+slotlock-backend  | 	Database driver: undefined/unknown
+slotlock-backend  | 	Database version: 16.15
+slotlock-nginx    | 127.0.0.1 - - [05/Nov/2026:11:41:14 +0000] "GET / HTTP/1.1" 200 730 "-" "Wget" "-"
+slotlock-backend  | 	Autocommit mode: undefined/unknown
+slotlock-backend  | 	Isolation level: undefined/unknown
+slotlock-backend  | 	Minimum pool size: undefined/unknown
+slotlock-backend  | 	Maximum pool size: undefined/unknown
+slotlock-backend  | 2026-11-05T11:40:09.152Z  INFO 1 --- [slotlock] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+slotlock-backend  | 2026-11-05T11:40:09.258Z  INFO 1 --- [slotlock] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+slotlock-backend  | 2026-11-05T11:40:10.388Z  INFO 1 --- [slotlock] [           main] eAuthenticationProviderManagerConfigurer : Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+slotlock-backend  | 2026-11-05T11:40:10.389Z  WARN 1 --- [slotlock] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+slotlock-backend  | 2026-11-05T11:40:12.433Z  INFO 1 --- [slotlock] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+slotlock-backend  | 2026-11-05T11:40:13.936Z  INFO 1 --- [slotlock] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
+slotlock-backend  | 2026-11-05T11:40:13.965Z  INFO 1 --- [slotlock] [           main] com.slotlock.SlotLockApplication         : Started SlotLockApplication in 19.423 seconds (process running for 21.891)
+slotlock-backend  | 2026-11-05T11:40:14.529Z  INFO 1 --- [slotlock] [           main] com.slotlock.user.AdminInitializer       : Admin user already exists with email: admin@slotlock.local
+slotlock-backend  | 2026-11-05T11:40:17.825Z  INFO 1 --- [slotlock] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+slotlock-backend  | 2026-11-05T11:40:17.825Z  INFO 1 --- [slotlock] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+slotlock-backend  | 2026-11-05T11:40:17.828Z  INFO 1 --- [slotlock] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 3 ms
+
+=== 3. DOCKER STATS (NO-STREAM) ===
+CONTAINER ID   NAME                   CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O        PIDS
+0da14187e956   slotlock-nginx         0.00%     3.898MiB / 7.436GiB   0.05%     13kB / 9.32kB     0B / 12.3kB      2
+efff887f9db5   slotlock-backend       0.49%     294.1MiB / 7.436GiB   3.86%     82.6kB / 77kB     0B / 61.4kB      47
+3e09fcd1b91f   slotlock-postgres      0.05%     95.29MiB / 7.436GiB   1.25%     76.7kB / 79.1kB   0B / 225kB       56
+4e61d54d2b97   slotlock-frontend      0.00%     11.54MiB / 7.436GiB   0.15%     5.9kB / 8.08kB    0B / 8.19kB      13
+b387a0506a0a   pulseboard_mongo_dev   0.70%     291.2MiB / 7.436GiB   3.82%     319kB / 435kB     341MB / 21.3MB   39
+
+=== 4. DATABASE PERSISTENCE TEST ===
+Step 4.1: Register student and create test reservation before stack restart...
+Created booking before shutdown: ID=452, Title='Persistence Proof Seminar 1793878883', Status=PENDING
+
+Step 4.2: Stopping stack without removing volumes (docker compose down)...
+Stack stopped successfully (volume preserved).
+
+Step 4.3: Starting stack with existing volume (docker compose up -d)...
+Waiting for backend service to become healthy...
+Backend is healthy! (Attempt 1)
+
+Step 4.4: Verifying booking persisted across container recreation...
+SUCCESS: Booking persisted across restart!
+Persisted Record: ID=452, Title='Persistence Proof Seminar 1793878883', Status=PENDING, Hall='Main Auditorium'
+
+=== 5. PRIVATE DATABASE ISOLATION PROOF ===
+Testing host connection to port 5432:
+localhost:5432 -> TcpTestSucceeded: True (native Windows PostgreSQL service PID 6360)
+
+Testing host connection to port 5433 (should FAIL):
+localhost:5433 -> TcpTestSucceeded: False
+
+Checking published ports for postgres via compose (should be empty):
+docker compose port postgres 5432 -> :0 (No port published by production postgres container)
+
+================================================================================
+                     EVIDENCE VERIFICATION COMPLETE                             
+================================================================================
