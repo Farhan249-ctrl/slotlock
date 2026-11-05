@@ -5,7 +5,7 @@
 // 1. Checkout: Clones source repository from version control.
 // 2. Backend Test: Boots ephemeral PostgreSQL test container and executes Maven test suite.
 // 3. Frontend Build: Installs dependencies and builds the React 18 production bundle.
-// 4. Build Images: Builds immutable Docker images for backend and frontend tagged with BUILD_NUMBER.
+// 4. Build Images: Builds immutable Docker images for backend and frontend tagged with BUILD_NUMBER and v1.
 // 5. Push: Authenticates with Docker Registry using credentials binding and pushes versioned images.
 // 6. Deploy: Connects via SSH to remote EC2 deployment host to update and restart the stack.
 // 7. Verify: Health-checks public ingress through Nginx reverse proxy to confirm live deployment.
@@ -15,7 +15,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_REGISTRY  = 'farhan249'
+        DOCKER_REGISTRY  = 'farhan14031'
         BACKEND_IMAGE    = "${DOCKER_REGISTRY}/slotlock-backend"
         FRONTEND_IMAGE   = "${DOCKER_REGISTRY}/slotlock-frontend"
         DEPLOY_HOST      = 'ec2-deploy.slotlock.internal'
@@ -88,13 +88,13 @@ pipeline {
             }
         }
 
-        // Stage 4: Build immutable Docker images tagged with BUILD_NUMBER
+        // Stage 4: Build immutable Docker images tagged with BUILD_NUMBER and v1
         stage('Build Images') {
             steps {
-                echo "=== Stage 4: Building Docker images for build #${BUILD_NUMBER} ==="
+                echo "=== Stage 4: Building Docker images for build #${BUILD_NUMBER} and tag v1 ==="
                 sh """
-                    docker build -t ${BACKEND_IMAGE}:${BUILD_NUMBER} -t ${BACKEND_IMAGE}:latest ./backend
-                    docker build -t ${FRONTEND_IMAGE}:${BUILD_NUMBER} -t ${FRONTEND_IMAGE}:latest ./frontend
+                    docker build -t ${BACKEND_IMAGE}:${BUILD_NUMBER} -t ${BACKEND_IMAGE}:v1 ./backend
+                    docker build -t ${FRONTEND_IMAGE}:${BUILD_NUMBER} -t ${FRONTEND_IMAGE}:v1 ./frontend
                 """
             }
         }
@@ -111,9 +111,9 @@ pipeline {
                     sh """
                         echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
                         docker push ${BACKEND_IMAGE}:${BUILD_NUMBER}
-                        docker push ${BACKEND_IMAGE}:latest
+                        docker push ${BACKEND_IMAGE}:v1
                         docker push ${FRONTEND_IMAGE}:${BUILD_NUMBER}
-                        docker push ${FRONTEND_IMAGE}:latest
+                        docker push ${FRONTEND_IMAGE}:v1
                         docker logout
                     """
                 }

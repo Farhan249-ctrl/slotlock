@@ -73,6 +73,17 @@ flowchart TD
 
 ---
 
+## Docker Hub
+
+Configured registry repositories for automated pipeline builds:
+
+- **Backend**: [`farhan14031/slotlock-backend`](https://hub.docker.com/r/farhan14031/slotlock-backend)
+  - Tags: `${BUILD_NUMBER}`, `v1`
+- **Frontend**: [`farhan14031/slotlock-frontend`](https://hub.docker.com/r/farhan14031/slotlock-frontend)
+  - Tags: `${BUILD_NUMBER}`, `v1`
+
+---
+
 ## Repository Layout
 
 ```
@@ -232,3 +243,5 @@ The following items are intentionally deferred and have **not** been executed:
    - Production TLS certificates via Let's Encrypt / Certbot (current deployment uses self-signed certificates generated for localhost).
 2. **Live Jenkins Server Execution**:
    - The declarative `Jenkinsfile` has been written and syntax-validated, but **no live Jenkins server run was executed** because an active Jenkins master and remote agent infrastructure are not present in this local environment.
+3. **Live Docker Hub Image Push**:
+   - The repository names (`farhan14031/slotlock-backend` and `farhan14031/slotlock-frontend`) and target tags (`${BUILD_NUMBER}` and `v1`) are configured in the `Jenkinsfile`. Because no live Jenkins pipeline or Docker Hub authentication was performed in this environment, images have not yet been pushed to Docker Hub.
