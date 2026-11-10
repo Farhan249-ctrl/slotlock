@@ -1,0 +1,10 @@
+# ==============================================================================
+# Namespace: slotlock
+# Isolates all SlotLock Kubernetes components into a dedicated workspace
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: slotlock
+  labels:
+    app.kubernetes.io/name: slotlock

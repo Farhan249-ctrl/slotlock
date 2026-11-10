@@ -1,0 +1,18 @@
+# ==============================================================================
+# ConfigMap: slotlock-config
+# Non-secret environment settings for database and admin configuration
+# ==============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slotlock-config
+  namespace: slotlock
+  labels:
+    app.kubernetes.io/name: slotlock
+data:
+  POSTGRES_DB: "slotlock"
+  POSTGRES_USER: "slotlock"
+  POSTGRES_HOST: "postgres"
+  # Target port 5432 for in-cluster Postgres communication (wins over dev host port 5433)
+  POSTGRES_PORT: "5432"
+  ADMIN_EMAIL: "admin@slotlock.local"

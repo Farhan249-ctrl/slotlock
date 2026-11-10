@@ -1,0 +1,33 @@
+# ==============================================================================
+# Ingress: slotlock-ingress
+# Routes /api to backend:8080 and / to frontend:80 via nginx ingress controller
+# IngressClassName: nginx with no rewrite annotations
+# ==============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: slotlock-ingress
+  namespace: slotlock
+  labels:
+    app.kubernetes.io/name: ingress
+    app.kubernetes.io/part-of: slotlock
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

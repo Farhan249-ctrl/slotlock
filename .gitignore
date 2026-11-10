@@ -1,6 +1,7 @@
 .env
 *.pem
 nginx/certs/
+k8s/secret*.yaml
 target/
 node_modules/
 .idea/
