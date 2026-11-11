@@ -67,6 +67,13 @@ spec:
           ports:
             - containerPort: 5432
               name: postgres
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           readinessProbe:
             exec:
               command:
