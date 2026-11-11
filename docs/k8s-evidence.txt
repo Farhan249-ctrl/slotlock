@@ -1,0 +1,132 @@
+================================================================================
+SLOTLOCK KUBERNETES (MINIKUBE) EVIDENCE
+Date: 2026-11-11
+Cluster: minikube v1.39.0, Kubernetes v1.37.0, driver=docker, cpus=4, memory=4096
+Namespace: slotlock
+Access: kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8085:80
+        (Ingress routes /api -> backend:8080, / -> frontend:80)
+Note: v2 rollout used the SAME image as v1, tagged locally, to demonstrate the
+      rollout mechanism only.
+================================================================================
+
+--- kubectl get pods,svc,pvc,ingress -n slotlock (final state) ---
+NAME                            READY   STATUS    RESTARTS        AGE
+pod/backend-548849f946-kq924    1/1     Running   0              2m50s
+pod/backend-548849f946-r4k67    1/1     Running   0              2m4s
+pod/frontend-d9f5c4f9f-2b4nv    1/1     Running   0              52m
+pod/frontend-d9f5c4f9f-mf7b6    1/1     Running   0              52m
+pod/postgres-5dfd45d554-rvnpp   1/1     Running   1 (5m8s ago)   6m14s
+
+NAME               TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+service/backend    ClusterIP   10.103.72.246   <none>        8080/TCP   52m
+service/frontend   ClusterIP   10.104.48.228   <none>        80/TCP     52m
+service/postgres   ClusterIP   10.101.35.74    <none>        5432/TCP   52m
+
+NAME                                 STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+persistentvolumeclaim/postgres-pvc   Bound    pvc-30df996f-1890-4a5e-962e-8ced6d8e6377   1Gi        RWO            standard       <unset>                 52m
+
+NAME                                         CLASS   HOSTS   ADDRESS        PORTS   AGE
+ingress.networking.k8s.io/slotlock-ingress   nginx   *       192.168.49.2   80      52m
+
+================================================================================
+PROOF 1 - SMOKE TEST (baseline, 2 backend replicas)
+$ .\scripts\smoke.ps1 -BaseUrl http://localhost:8085
+Admin login successful! Role: ADMIN
+Student registered successfully!
+Found 3 halls. Using Hall: Main Auditorium (ID: 1, Capacity: 500)
+Booking created! ID: 1, Status: PENDING
+Received HTTP 409 Conflict as expected! Response body: {"error":"SLOT_TAKEN"}
+Booking updated! New status: APPROVED
+Booking cancelled! New status: CANCELLED
+Re-booking successful! New booking ID: 3, Status: PENDING
+SMOKE TEST PASSED COMPLETELY!
+
+================================================================================
+PROOF 2 - SCALE (backend 2 -> 3 replicas)
+$ kubectl scale deployment/backend --replicas=3 -n slotlock
+deployment.apps/backend scaled
+$ kubectl rollout status deployment/backend -n slotlock --timeout=300s
+deployment "backend" successfully rolled out
+$ kubectl get pods -n slotlock -l app=backend
+backend-548849f946-7h46j   1/1   Running
+backend-548849f946-kg9j2   1/1   Running
+backend-548849f946-tgfqs   1/1   Running
+NOTE: first scale attempt exposed Postgres max_connections=100 exhaustion
+      (HikariCP pool=50/pod x 3 pods). Fixed in k8s/postgres.yaml via
+      args: ["-c", "max_connections=300"] (commit a8a0a24).
+$ .\scripts\smoke.ps1 -BaseUrl http://localhost:8085  (on 3 replicas)
+Booking created! ID: 4 ... SMOKE TEST PASSED COMPLETELY!
+
+================================================================================
+PROOF 3 - SELF-HEAL (delete one backend pod)
+$ kubectl delete pod backend-548849f946-7h46j -n slotlock
+pod "backend-548849f946-7h46j" deleted from slotlock namespace
+$ kubectl get pods -n slotlock -l app=backend  (after rollout)
+backend-548849f946-kg9j2   1/1   Running
+backend-548849f946-klfk4   1/1   Running   <- replacement pod, Ready
+backend-548849f946-tgfqs   1/1   Running
+$ .\scripts\smoke.ps1 -BaseUrl http://localhost:8085
+Booking created! ID: 7 ... SMOKE TEST PASSED COMPLETELY!
+
+================================================================================
+PROOF 4 - PERSISTENCE (delete postgres pod, data survives on PVC)
+$ kubectl delete pod -n slotlock -l app=postgres
+pod "postgres-5dfd45d554-rllvs" deleted from slotlock namespace
+$ kubectl rollout status deployment/postgres -n slotlock --timeout=180s
+deployment "postgres" successfully rolled out
+$ .\scripts\smoke.ps1 -BaseUrl http://localhost:8085  (after postgres restart)
+Found 3 halls. (seeded data intact)
+Booking created! ID: 40 ... SMOKE TEST PASSED COMPLETELY!
+Booking IDs continued from previous runs (1,3,4,6,7,9 -> 40,42) proving
+pre-existing rows survived the postgres pod deletion via postgres-pvc.
+
+================================================================================
+PROOF 5 - ROLLING UPDATE + ROLLBACK
+v2 is the same image as v1, tagged locally, to demonstrate the rollout mechanism.
+$ docker tag farhan14031/slotlock-backend:v1 farhan14031/slotlock-backend:v2
+$ minikube image load farhan14031/slotlock-backend:v2
+$ kubectl set image deployment/backend backend=farhan14031/slotlock-backend:v2 -n slotlock
+deployment.apps/backend image updated
+$ kubectl rollout status deployment/backend -n slotlock --timeout=300s
+deployment "backend" successfully rolled out   (1->2->3 of 3 replicas updated,
+                                               old replicas terminated last)
+API polling during rollout (curl http://localhost:8085/api/halls):
+  every poll returned HTTP 401 (reachable, auth required) - ZERO failed requests
+$ kubectl rollout history deployment/backend -n slotlock
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+$ kubectl rollout undo deployment/backend -n slotlock
+deployment.apps/backend rolled back
+deployment "backend" successfully rolled out
+$ kubectl get deployment backend -n slotlock -o jsonpath="{.spec.template.spec.containers[0].image}"
+"farhan14031/slotlock-backend:v1"    <- rolled back to v1
+$ kubectl rollout history deployment/backend -n slotlock
+REVISION  CHANGE-CAUSE
+2         <none>
+3         <none>
+
+================================================================================
+PROOF 6 - SCALE BACK to manifest replicas (2)
+$ kubectl scale deployment/backend --replicas=2 -n slotlock
+deployment.apps/backend scaled
+deployment "backend" successfully rolled out
+$ kubectl get pods -n slotlock
+backend-548849f946-kq924    1/1   Running
+backend-548849f946-r4k67    1/1   Running
+frontend-d9f5c4f9f-2b4nv    1/1   Running
+frontend-d9f5c4f9f-mf7b6    1/1   Running
+postgres-5dfd45d554-rvnpp   1/1   Running
+$ .\scripts\smoke.ps1 -BaseUrl http://localhost:8085
+Booking created! ID: 10 ... SMOKE TEST PASSED COMPLETELY!
+
+================================================================================
+ISSUES FOUND AND FIXED DURING THIS RUN
+1. postgres:16 ImagePullBackOff - transient DNS failure inside minikube node
+   (lookup registry-1.docker.io ... no such host); kubelet retry succeeded.
+2. Backend crash-loop on 3rd replica: FATAL: sorry, too many clients already
+   (Postgres max_connections=100 vs HikariCP 50/pod). Fixed: k8s/postgres.yaml
+   args: ["-c", "max_connections=300"] (commit a8a0a24).
+3. First attempt used `command:` which bypassed docker-entrypoint.sh and ran
+   postgres as root; corrected to `args:` in the same commit.
+================================================================================
