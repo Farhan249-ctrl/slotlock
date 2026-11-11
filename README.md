@@ -75,12 +75,12 @@ flowchart TD
 
 ## Docker Hub
 
-Configured registry repositories for automated pipeline builds:
+Images confirmed present on Docker Hub (verified via `docker pull`):
 
-- **Backend**: [`farhan14031/slotlock-backend`](https://hub.docker.com/r/farhan14031/slotlock-backend)
-  - Tags: `${BUILD_NUMBER}`, `v1`
-- **Frontend**: [`farhan14031/slotlock-frontend`](https://hub.docker.com/r/farhan14031/slotlock-frontend)
-  - Tags: `${BUILD_NUMBER}`, `v1`
+- **Backend**: `farhan14031/slotlock-backend:v1`
+- **Frontend**: `farhan14031/slotlock-frontend:v1`
+
+The Jenkins pipeline is configured to also tag builds with `${BUILD_NUMBER}`; those tags have not been verified.
 
 ---
 
@@ -119,12 +119,15 @@ slotlock/
 │       └── pages/            # Login, Register, Halls, HallDetail (timeline track), MyBookings, Admin
 ├── nginx/
 │   └── nginx.conf            # Edge reverse proxy configuration (HTTP redirect, SSL termination, proxy headers)
+├── k8s/                     # Kubernetes manifests (namespace, configmap, postgres+PVC, backend, frontend, ingress)
 ├── docs/
-│   └── evidence.txt          # Full deployment verification output (ps, logs, stats, persistence, isolation)
+│   ├── evidence.txt          # Full deployment verification output (ps, logs, stats, persistence, isolation)
+│   └── k8s-evidence.txt      # Minikube run evidence: smoke, scale, self-heal, persistence, rollout/rollback
 └── scripts/
     ├── gen-cert.ps1          # Self-signed TLS certificate generation via alpine/openssl container
     ├── smoke.ps1             # End-to-end smoke test through HTTPS edge
     ├── evidence.ps1          # Automated proof script for persistence and network isolation
+    ├── k8s-secrets.ps1       # Creates slotlock-secrets Secret in Kubernetes from .env
     ├── start-backend.ps1     # Local standalone backend launcher
     └── test.ps1              # Local Maven test runner with environment injection
 ```
@@ -234,6 +237,18 @@ powershell -ExecutionPolicy Bypass -File scripts/evidence.ps1
 
 ---
 
+## Kubernetes (Minikube)
+
+Verified on Minikube v1.39.0 / Kubernetes v1.37.0 (`--driver=docker --cpus=4 --memory=4096`) with the `ingress-nginx` addon. Full command output is in `docs/k8s-evidence.txt`.
+
+- **Deploy**: `scripts/k8s-secrets.ps1` creates `slotlock-secrets` from `.env`, then `kubectl apply -f k8s/`. All pods reach `1/1 Running`.
+- **Access**: `kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8085:80` (do not use `minikube tunnel`; Compose owns 80/443). The Ingress routes `/api` to `backend:8080` and `/` to `frontend:80`.
+- **Smoke**: `.\scripts\smoke.ps1 -BaseUrl http://localhost:8085` passes (login, register, book, 409 conflict, approve, cancel, re-book).
+- **Scale**: `kubectl scale deployment/backend --replicas=3` rolled out and smoke passed on 3 replicas. Postgres `max_connections` was raised to 300 in `k8s/postgres.yaml` because each backend pod's HikariCP pool is 50.
+- **Self-heal**: deleting a backend pod produced a new `1/1 Running` pod; smoke passed.
+- **Persistence**: deleting the postgres pod kept all data on `postgres-pvc`; booking IDs continued across the restart.
+- **Rolling update/rollback**: `kubectl set image` to a locally tagged `v2` (same image as `v1`, for mechanism demo only) rolled out with zero failed API requests; `kubectl rollout undo` returned to `v1`.
+
 ## Not Yet Done (Future Milestones)
 
 The following items are intentionally deferred and have **not** been executed:
@@ -243,5 +258,5 @@ The following items are intentionally deferred and have **not** been executed:
    - Production TLS certificates via Let's Encrypt / Certbot (current deployment uses self-signed certificates generated for localhost).
 2. **Live Jenkins Server Execution**:
    - The declarative `Jenkinsfile` has been written and syntax-validated, but **no live Jenkins server run was executed** because an active Jenkins master and remote agent infrastructure are not present in this local environment.
-3. **Live Docker Hub Image Push**:
-   - The repository names (`farhan14031/slotlock-backend` and `farhan14031/slotlock-frontend`) and target tags (`${BUILD_NUMBER}` and `v1`) are configured in the `Jenkinsfile`. Because no live Jenkins pipeline or Docker Hub authentication was performed in this environment, images have not yet been pushed to Docker Hub.
+3. **Docker Hub `${BUILD_NUMBER}` Tags**:
+   - The `v1` tags for `farhan14031/slotlock-backend` and `farhan14031/slotlock-frontend` are confirmed on Docker Hub. Per-build `${BUILD_NUMBER}` tags from the Jenkins pipeline have not been pushed because no live Jenkins run has executed.
