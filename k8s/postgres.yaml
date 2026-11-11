@@ -47,7 +47,7 @@ spec:
           imagePullPolicy: IfNotPresent
           # Backend HikariCP pool is 50 connections per replica; 300 leaves
           # headroom for 3+ replicas, Flyway and superuser connections
-          command: ["postgres", "-c", "max_connections=300"]
+          args: ["-c", "max_connections=300"]
           env:
             # Subdirectory path inside PVC mount to prevent lost+found collision
             - name: PGDATA
